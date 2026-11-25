@@ -7,7 +7,7 @@ Description: Fits latent class models for categorical variables with any
     number of levels using expectation-maximisation on distinct response
     patterns. Independent Dirichlet priors give maximum a posteriori
     estimates, with maximum likelihood as the uniform-prior default.
-License: GPL (>= 3)
+License: MIT + file LICENSE
 Encoding: UTF-8
 Imports: stats
 Suggests: testthat (>= 3.0.0)
