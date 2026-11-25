@@ -1,11 +1,13 @@
-lca_patterns <- function(X, counts) {
+lca_patterns_simple <- function(X, counts) {
   X <- as.data.frame(X)
   stopifnot(nrow(X) > 0L, ncol(X) > 0L, !anyNA(X))
   if (is.null(counts)) counts <- rep(1, nrow(X))
   stopifnot(length(counts) == nrow(X), all(is.finite(counts)), all(counts > 0))
   X[] <- lapply(X, function(x) if (is.factor(x)) x else factor(x))
   levels <- lapply(X, levels)
-  x <- matrix(unlist(lapply(X, as.integer)), nrow(X), ncol(X))
+  
+  x <- matrix(unlist(lapply(X, as.integer), use.names = FALSE), nrow(X), ncol(X))
+  
   key <- do.call(paste, c(as.data.frame(x), sep = ":"))
   keep <- !duplicated(key)
   index <- match(key, key[keep])
@@ -14,6 +16,55 @@ lca_patterns <- function(X, counts) {
               index = index, levels = levels)
   return(out)
 }
+
+
+lca_patterns <- function(X, counts = NULL) {
+  X <- as.data.frame(X)
+  stopifnot(nrow(X) > 0L, ncol(X) > 0L, !anyNA(X))
+  if (!is.null(counts)){
+    stopifnot(length(counts) == nrow(X), all(is.finite(counts)), all(counts > 0))
+  }
+  levels <- vector("list", ncol(X))
+  names(levels) <- names(X)
+  key <- numeric(nrow(X))
+  stride <- 1
+  for (j in seq_len(ncol(X))) {
+    f <- if (is.factor(X[[j]])) X[[j]] else factor(X[[j]])
+    levels[[j]] <- levels(f)
+    L <- nlevels(f)
+    # Keep numeric keys exact when category products become large.
+    if (stride * L > 2^52) {
+      key <- match(key, unique(key)) - 1L
+      stride <- max(key) + 1
+    }
+    if (stride * L > 2^52) {
+      key <- paste(key, as.integer(f), sep = ":")
+      key <- match(key, unique(key)) - 1L
+      stride <- max(key) + 1
+    } else {
+      key <- key + (as.integer(f) - 1L) * stride
+      stride <- stride * L
+    }
+  }
+  keep <- !duplicated(key)
+  index <- match(key, key[keep])
+  # Build factors and the integer matrix only for distinct patterns.
+  patterns <- X[keep, , drop = FALSE]
+  patterns[] <- Map(function(x, lev) if (is.factor(x)) x else factor(x, levels = lev),
+                    patterns, levels)
+  x <- matrix(unlist(lapply(patterns, as.integer), use.names = FALSE),
+              nrow(patterns), ncol(patterns))
+  
+  if (is.null(counts)){
+    counts <- as.numeric(tabulate(index, nrow(patterns)))
+  }else{
+    counts <- as.numeric(rowsum(counts, index, reorder = FALSE))
+    
+  }
+  
+  return(list(x = x, patterns = patterns, counts = counts, index = index, levels = levels))
+}
+
 
 row_probs <- function(x) {
   # An empty class with a flat prior has no preferred item probabilities.
